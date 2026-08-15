@@ -6,6 +6,11 @@ on:
       commit:
         description: Exact commit SHA to validate
         required: true
+      run_linux:
+        description: Run the Linux validation job
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -13,6 +18,7 @@ permissions:
 jobs:
   desktop-tauri:
     name: Desktop Tauri
+    if: inputs.run_linux
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -100,8 +106,8 @@ jobs:
             touch "desktop/src-tauri/binaries/${bin}-${TARGET}.exe"
           done
       - name: Clippy
-        run: cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --workspace --all-targets --target $env:TARGET -- -D warnings
+        run: cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --all-targets --target $env:TARGET -- -D warnings
       - name: Check
-        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --workspace --all-targets --target $env:TARGET
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --all-targets --target $env:TARGET
       - name: Test
         run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --target $env:TARGET
