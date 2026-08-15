@@ -3,10 +3,9 @@ name: Manual Desktop Tauri Validation
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: Git ref to validate
+      commit:
+        description: Exact commit SHA to validate
         required: true
-        default: main
 
 permissions:
   contents: read
@@ -19,7 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.commit }}
+      - name: Verify exact checkout
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          actual=$(git rev-parse HEAD)
+          test "$actual" = "$EXPECTED_COMMIT"
+          echo "Validated commit: $actual"
       - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
       - uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
@@ -61,3 +68,40 @@ jobs:
         run: just desktop-tauri-test-compiled-flags
         env:
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+
+  windows-tauri:
+    name: Windows Tauri (MSVC)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+      TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.commit }}
+      - name: Verify exact checkout
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+        run: |
+          actual=$(git rev-parse HEAD)
+          test "$actual" = "$EXPECTED_COMMIT"
+          echo "Validated commit: $actual"
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: desktop/src-tauri
+          key: windows-msvc
+      - name: Create sidecar placeholders
+        shell: bash
+        run: |
+          mkdir -p desktop/src-tauri/binaries
+          for bin in buzz-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
+            touch "desktop/src-tauri/binaries/${bin}-${TARGET}.exe"
+          done
+      - name: Clippy
+        run: cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --workspace --all-targets --target $env:TARGET -- -D warnings
+      - name: Check
+        run: cargo check --manifest-path desktop/src-tauri/Cargo.toml --workspace --all-targets --target $env:TARGET
+      - name: Test
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --target $env:TARGET
